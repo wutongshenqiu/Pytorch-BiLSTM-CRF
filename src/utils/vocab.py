@@ -9,7 +9,8 @@ import json
 from .type import (
     SpecialTokens,
     FILE_PATH_TYPE,
-    SENTENCES_TYPE
+    SENTENCES_TYPE,
+    INDICES_TYPE
 )
 
 ST = SpecialTokens
@@ -33,6 +34,12 @@ class Vocab:
         if ST.UNK in self._word2idx:
             return self._word2idx[ST.UNK]
         raise ValueError(f"Word `{word}` not in directories")
+    
+    def sentences_to_indices(self, sentences: SENTENCES_TYPE) -> INDICES_TYPE:
+        return [
+            [self.word_to_idx(w) for w in sentence] 
+            for sentence in sentences
+        ]
 
     def idx_to_word(self, idx: int) -> str:
         return self._idx2word[idx]
@@ -57,9 +64,9 @@ class Vocab:
     @staticmethod
     def build_from_sentences(
         sentences: SENTENCES_TYPE,
-        max_dict_size: int,
-        freq_cutoff: int,
-        is_tags: bool
+        is_tags: bool,
+        max_dict_size: int = 5000,
+        freq_cutoff: int = 2
     ) -> Vocab:
         """build vocab from given sentences
 
