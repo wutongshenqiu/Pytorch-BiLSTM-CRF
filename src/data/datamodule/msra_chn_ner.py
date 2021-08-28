@@ -53,6 +53,8 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
                 "sentences_vocab": sentences_vocab,
                 "tags_vocab": tags_vocab
             }
+        
+        self._collate_fn = WordDataset.collate_fn
 
         self._test_dataset = WordDataset(
             **prepare_arguments(self._test_dataset_path)
@@ -71,21 +73,24 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
         return DataLoader(
             dataset=self._train_dataset,
             batch_size=self._batch_size,
-            shuffle=self._train_shuffle
+            shuffle=self._train_shuffle,
+            collate_fn=self._collate_fn
         )
     
     def val_dataloader(self) -> DataLoader:
         return DataLoader(
             dataset=self._val_dataset,
             batch_size=self._batch_size,
-            shuffle=self._test_shuffle
+            shuffle=self._test_shuffle,
+            collate_fn=self._collate_fn
         )
 
     def test_dataloader(self) -> DataLoader:
         return DataLoader(
             dataset=self._test_dataset,
             batch_size=self._batch_size,
-            shuffle=self._test_shuffle
+            shuffle=self._test_shuffle,
+            collate_fn=self._collate_fn
         )
         
         

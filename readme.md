@@ -8,7 +8,9 @@ PyTorch implementation of BiLSTM-CRF for named entity recognition.
 
 - [x] 实现 `Vocab` 
 - [x] 实现数据集处理
-- [ ] 实现 `BiLSTMCRF`
+- [x] 实现 `BiLSTMCRF`
+- [ ] 实现 `trainer`
+- [ ] 效果测试
 
 
 

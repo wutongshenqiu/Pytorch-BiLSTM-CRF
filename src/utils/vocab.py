@@ -94,6 +94,9 @@ class Vocab:
             word2idx=word2idx,
             idx2word=valid_words
         )
+    
+    def __len__(self) -> int:
+        return len(self._word2idx)
 
 
 if __name__ == "__main__":
