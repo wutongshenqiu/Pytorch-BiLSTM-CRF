@@ -1,2 +1,6 @@
 __pycache__/
 .vscode/
+lightning_logs/
+checkpoints/
+tmp/
+tb_logs/

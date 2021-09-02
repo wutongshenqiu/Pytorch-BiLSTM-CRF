@@ -1,1 +1,1 @@
-from .datamodule import MsraCHNNERDataModule
+from .datamodule import get_datamodule

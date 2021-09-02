@@ -1,11 +1,15 @@
 from typing import Optional, Dict, Any
+import functools
 
 import pytorch_lightning as pl
 
 from torch.utils.data import random_split, DataLoader
 
 from src.data.dataset import WordDataset
-from src.utils import read_corpus, Vocab
+from src.utils import (
+    read_corpus,
+    load_vocabs
+)
 from src.utils.type import FILE_PATH_TYPE
 
 
@@ -13,10 +17,12 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
 
     def __init__(
         self, *,
-        train_dataset_path: FILE_PATH_TYPE,
-        test_dataset_path: FILE_PATH_TYPE,
+        train_dataset_path: FILE_PATH_TYPE = "./data/train.txt",
+        test_dataset_path: FILE_PATH_TYPE = "./data/test.txt",
+        vocabs_dir: FILE_PATH_TYPE = "./data/vocabs",
         validation_rate: float = 0.2,
         batch_size: int = 32,
+        num_workers: int = 4,
         train_shuffle: bool = True,
         test_shuffle: bool = False,
         **kwargs
@@ -25,8 +31,11 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
         self._test_dataset_path = test_dataset_path
         self._validation_rate = validation_rate
         self._batch_size = batch_size
+        self._num_workers = num_workers
         self._train_shuffle = train_shuffle
         self._test_shuffle = test_shuffle
+        
+        self._sentences_vocab, self._tags_vocab = load_vocabs(vocabs_dir)
         
         super().__init__(**kwargs)
         
@@ -40,27 +49,28 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
         def prepare_arguments(dataset_path: FILE_PATH_TYPE) -> Dict[str, Any]:
             sentences, tags = read_corpus(dataset_path)
-            sentences_vocab = Vocab.build_from_sentences(
-                sentences=sentences, is_tags=False
-            )
-            tags_vocab = Vocab.build_from_sentences(
-                sentences=tags, is_tags=True
-            )
-
             return {
                 "sentences": sentences,
                 "tags": tags,
-                "sentences_vocab": sentences_vocab,
-                "tags_vocab": tags_vocab
             }
         
-        self._collate_fn = WordDataset.collate_fn
-
-        self._test_dataset = WordDataset(
+        self._collate_fn = functools.partial(
+            WordDataset.collate_fn, 
+            sentence_pad_idx=self._sentences_vocab.pad_idx,
+            tag_pad_idx=self._tags_vocab.pad_idx
+        )
+        
+        partial_dataset = functools.partial(
+            WordDataset, 
+            sentences_vocab=self._sentences_vocab,
+            tags_vocab=self._tags_vocab
+        )
+          
+        self._test_dataset = partial_dataset(
             **prepare_arguments(self._test_dataset_path)
         )
-
-        dataset = WordDataset(
+        
+        dataset = partial_dataset(
             **prepare_arguments(self._train_dataset_path)
         )
         total_len = len(dataset)
@@ -73,6 +83,7 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
         return DataLoader(
             dataset=self._train_dataset,
             batch_size=self._batch_size,
+            num_workers=self._num_workers,
             shuffle=self._train_shuffle,
             collate_fn=self._collate_fn
         )
@@ -81,6 +92,7 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
         return DataLoader(
             dataset=self._val_dataset,
             batch_size=self._batch_size,
+            num_workers=self._num_workers,
             shuffle=self._test_shuffle,
             collate_fn=self._collate_fn
         )
@@ -89,6 +101,7 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
         return DataLoader(
             dataset=self._test_dataset,
             batch_size=self._batch_size,
+            num_workers=self._num_workers,
             shuffle=self._test_shuffle,
             collate_fn=self._collate_fn
         )
@@ -97,7 +110,8 @@ class MsraCHNNERDataModule(pl.LightningDataModule):
 if __name__ == "__main__":
     msra_ner = MsraCHNNERDataModule(
         train_dataset_path="./data/train.txt",
-        test_dataset_path="./data/test.txt"
+        test_dataset_path="./data/test.txt",
+        vocabs_dir="./data/vocabs"
     )
     msra_ner.prepare_data()
     msra_ner.setup()
@@ -105,3 +119,8 @@ if __name__ == "__main__":
     print(len(msra_ner.val_dataloader()) * 32)
     print(len(msra_ner.test_dataloader()) * 32)
     print(len(msra_ner.train_dataloader()) * 32)
+    
+    for x, y, seq_len in msra_ner.train_dataloader():
+        print(f"type x: {type(x)}, shape x: {x.shape}")
+        print(f"type y: {type(y)}, shape y: {y.shape}")
+        print(f"type seq_len: {type(seq_len)}")

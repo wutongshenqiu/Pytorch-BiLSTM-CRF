@@ -13,10 +13,7 @@ from torch.nn import (
 from torch.nn.utils import rnn
 
 from src.utils import Vocab
-from src.utils.type import (
-    SpecialTokens as ST,
-    INDICES_TYPE
-)
+from src.utils.type import INDICES_TYPE
 
 
 class BiLSTMCRF(Module):
@@ -73,7 +70,7 @@ class BiLSTMCRF(Module):
             Tensor: loss
         """
         # (batch_size, max_len) tensor, 0 for pad
-        mask = (sentences != self._sentences_vocab.word_to_idx(ST.PAD))
+        mask = (sentences != self._sentences_vocab.pad_idx)
         # (batch_size, max_len) => (max_len, batch_size)
         sentences = sentences.transpose(0, 1)
         # (max_len, batch_size, embedding_dim)
@@ -110,7 +107,7 @@ class BiLSTMCRF(Module):
         """
         # get packed sentences
         packed_sentences = rnn.pack_padded_sequence(
-            input=sentences, lengths=sentences_lengths, enforce_sorted=False
+            input=sentences, lengths=sentences_lengths, enforce_sorted=True
         )
         hidden_states, _ = self._encoder(packed_sentences)
         # padding for matrix transformation
@@ -187,9 +184,10 @@ class BiLSTMCRF(Module):
         Returns:
             List[List[str]]: predicted tags
         """
+        max_len = sentences_lengths[0]
         batch_size = sentences.shape[0]
         # shape: (b, len)
-        mask = (sentences != self._sentences_vocab.word_to_idx(ST.PAD))
+        mask = (sentences != self._sentences_vocab.pad_idx)
         # shape: (len, b)
         sentences = sentences.transpose(0, 1)
         # shape: (len, b, e)
@@ -203,7 +201,7 @@ class BiLSTMCRF(Module):
         tags = [[[i] for i in range(len(self._tags_vocab))]] * batch_size
         # shape: (b, 1, K)
         d = torch.unsqueeze(emit_score[:, 0], dim=1)
-        for i in range(1, sentences_lengths[0]):
+        for i in range(1, max_len):
             n_unfinished = mask[:, i].sum()
             # shape: (uf, 1, K)
             d_uf = d[: n_unfinished]
@@ -230,22 +228,20 @@ class BiLSTMCRF(Module):
 
 
 if __name__ == "__main__":
+    from pathlib import PurePath
     from pprint import pprint
     from torch.nn.utils import rnn
-    from src.data import MsraCHNNERDataModule
+    from src.data import get_datamodule
     from src.utils import Vocab, read_corpus
 
     train_file = "./data/train.txt"
     test_file = "./data/test.txt"
-    datamodule = MsraCHNNERDataModule(
-        train_dataset_path=train_file,
-        test_dataset_path=test_file
-    )
+    vocab_dir = PurePath("./data/vocabs")
+    datamodule = get_datamodule("msra_chn")
     datamodule.setup()
 
-    sentences, tags = read_corpus(train_file)
-    sent_vocab = Vocab.build_from_sentences(sentences, is_tags=False)
-    tags_vocab = Vocab.build_from_sentences(tags, is_tags=True)
+    sent_vocab = Vocab.load_from_json(vocab_dir / "sentences_vocab.json")
+    tags_vocab = Vocab.load_from_json(vocab_dir / "tags_vocab.json")
 
     model = BiLSTMCRF(
         sentences_vocab=sent_vocab,
@@ -253,14 +249,9 @@ if __name__ == "__main__":
     )
     print(model)
 
-    for sents, tags in datamodule.train_dataloader():
-        pad_sents = rnn.pad_sequence(
-            sents, batch_first=True, padding_value=sent_vocab.word_to_idx(ST.PAD))
-        pad_tags = rnn.pad_sequence(
-            tags, batch_first=True, padding_value=tags_vocab.word_to_idx(ST.PAD))
+    for pad_sents, pad_tags, sent_lens in datamodule.train_dataloader():
         print(f"pad sents shape: {pad_sents.shape}")
         print(f"pad tags shape: {pad_sents.shape}")
-        sent_lens = [s.size(0) for s in sents]
 
         loss = model(
             sentences=pad_sents,

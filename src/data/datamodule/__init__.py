@@ -1,1 +1,1 @@
-from .msra_chn_ner import MsraCHNNERDataModule
+from .utils import get_datamodule

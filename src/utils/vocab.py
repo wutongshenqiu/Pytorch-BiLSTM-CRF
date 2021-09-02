@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple
 from pathlib import PurePath
 from collections import Counter
 import itertools
 import json
 
 from .type import (
-    SpecialTokens,
+    SpecialTokens as ST,
     FILE_PATH_TYPE,
     SENTENCES_TYPE,
     INDICES_TYPE
 )
 
-ST = SpecialTokens
-
-__all__ = ["Vocab"]
+__all__ = ["Vocab", "load_vocabs"]
 
 
 class Vocab:
@@ -34,6 +32,10 @@ class Vocab:
         if ST.UNK in self._word2idx:
             return self._word2idx[ST.UNK]
         raise ValueError(f"Word `{word}` not in directories")
+    
+    @property
+    def pad_idx(self) -> int:
+        return self.word_to_idx(ST.PAD)
     
     def sentences_to_indices(self, sentences: SENTENCES_TYPE) -> INDICES_TYPE:
         return [
@@ -97,6 +99,25 @@ class Vocab:
     
     def __len__(self) -> int:
         return len(self._word2idx)
+    
+
+
+def load_vocabs(vocabs_dir: FILE_PATH_TYPE) -> Tuple[Vocab, Vocab]:
+    import os
+    
+    def check_path_exists(path: FILE_PATH_TYPE) -> None:
+        if not os.path.exists(path):
+            raise ValueError(f"`{path}` does not exist!")
+    
+    vocabs_dir = PurePath(vocabs_dir)
+    sentences_vocab_json_path = vocabs_dir / "sentences_vocab.json"
+    tags_vocab_json_path = vocabs_dir / "tags_vocab.json"
+    
+    check_path_exists(sentences_vocab_json_path)
+    check_path_exists(tags_vocab_json_path)
+    
+    return Vocab.load_from_json(sentences_vocab_json_path), \
+        Vocab.load_from_json(tags_vocab_json_path)
 
 
 if __name__ == "__main__":
