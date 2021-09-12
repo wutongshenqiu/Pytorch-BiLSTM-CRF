@@ -26,7 +26,7 @@ __all__ = ["BiLSTMCRFModel"]
 
 class BiLSTMCRFModel(pl.LightningModule):
     name: str = "BiLSTM-CRF"
-    
+
     def __init__(
         self, *,
         train_dataset_path: FILE_PATH_TYPE = _config.train_dataset_path,
@@ -43,9 +43,9 @@ class BiLSTMCRFModel(pl.LightningModule):
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
-        
+
         self._loss_function = get_loss_function(loss_name=loss_name)
-        
+
         sentences_vocab, tags_vocab = load_vocabs(vocabs_dir)
         self._sentences_vocab = sentences_vocab
         self._tags_vocab = tags_vocab
@@ -54,7 +54,7 @@ class BiLSTMCRFModel(pl.LightningModule):
             tags_vocab=tags_vocab,
             dropout_rate=dropout_rate,
             embedding_dim=embedding_dim,
-            hidden_size=hidden_size  
+            hidden_size=hidden_size
         )
         self._datamodule = get_datamodule(
             datamodule_name=datamodule_name,
@@ -63,13 +63,13 @@ class BiLSTMCRFModel(pl.LightningModule):
             vocabs_dir=vocabs_dir,
             **datamodule_kwargs
         )
-        
+
     def configure_optimizers(self) -> Any:
         return optim.Adam(
             params=self._model.parameters(),
             lr=self.hparams.lr
         )
-    
+
     def training_step(
         self,
         batch: Tuple[Tensor, Tensor, List[int]],
@@ -77,36 +77,41 @@ class BiLSTMCRFModel(pl.LightningModule):
     ) -> STEP_OUTPUT:
         batch_loss = self._step_next(batch)
         average_batch_loss = batch_loss.mean()
-        
-        self.log("training_loss", average_batch_loss, prog_bar=True, on_step=True, on_epoch=False)
-        
+
+        self.log_dict({
+            "training_loss": average_batch_loss
+        }, on_step=True, on_epoch=True)
+
         return average_batch_loss
-    
+
+    def on_train_epoch_end(self, unused: Optional = None) -> None:
+        return super().on_train_epoch_end(unused=unused)
+
     def validation_step(
         self,
         batch: Tuple[Tensor, Tensor, List[int]],
-        batch_idx: int    
+        batch_idx: int
     ) -> Optional[STEP_OUTPUT]:
         batch_loss = self._step_next(batch)
         average_batch_loss = batch_loss.mean()
-        
+
         self.log_dict({
             "validation_loss": average_batch_loss
-        }, on_step=True)
-        
+        }, on_step=True, on_epoch=True)
+
         return average_batch_loss
-        
+
     def _step_next(self, batch: Tuple[Tensor, Tensor, List[int]]) -> Tensor:
         pad_sentences, pad_tags, sentences_lengths = batch
-        
+
         batch_loss: Tensor = self._model(
             sentences=pad_sentences,
             tags=pad_tags,
             sentences_lengths=sentences_lengths
         )
-        
+
         return batch_loss
-    
+
     @property
     def datamodule(self) -> pl.LightningDataModule:
         return self._datamodule

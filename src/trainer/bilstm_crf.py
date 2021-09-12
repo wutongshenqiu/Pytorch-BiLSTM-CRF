@@ -12,7 +12,10 @@ if __name__ == "__main__":
     gradient_clip_val = 5.0
     check_val_every_n_epoch = 1
     
-    model = BiLSTMCRFModel()
+    model = BiLSTMCRFModel(
+        batch_size=128,
+        max_epochs=100
+    )
 
     checkpoint_dir_path = (
         base_config.checkpoints_dir_path /
@@ -26,7 +29,7 @@ if __name__ == "__main__":
     
     logger = TensorBoardLogger(
         save_dir="tb_logs",
-        name="BiLSTM-CRF"
+        name=f"{model.name}",
     )
 
     trainer = Trainer(
@@ -37,7 +40,7 @@ if __name__ == "__main__":
         gradient_clip_val=gradient_clip_val,
         check_val_every_n_epoch=check_val_every_n_epoch,
         logger=logger,
-        flush_logs_every_n_steps=1
+        flush_logs_every_n_steps=10
     )
 
     trainer.fit(
